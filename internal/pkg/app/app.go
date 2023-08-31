@@ -7,8 +7,9 @@ import (
 
 	"github.com/aslon1213/comnet_task/internal/app/handlers"
 	"github.com/aslon1213/comnet_task/internal/app/handlers/userHandlers"
-	"github.com/aslon1213/comnet_task/internal/app/initializers"
+	initializers "github.com/aslon1213/comnet_task/internal/app/initializers"
 	middlewares "github.com/aslon1213/comnet_task/internal/app/middleware"
+	authmiddleware "github.com/aslon1213/comnet_task/internal/app/middleware/AuthMiddleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,21 +25,39 @@ type App struct {
 func New() *App {
 
 	// prepare gin engine
-	initializers.Init()
+
 	ctx := context.Background()
 	app := &App{}
-	db, err := initializers.ConnectSqlite()
-	app.Db = db
+
+	db, err := initializers.Init()
 	if err != nil {
 		panic(err)
 	}
+
+	app.Db = db
+
 	app.Gin = gin.Default()
-	app.Midw = middlewares.New()
+	app.Midw = middlewares.New(authmiddleware.New(db, ctx))
 	app.H = handlers.New(userHandlers.New(ctx, app.Db))
 
 	// register routes
 	// user routes
-	app.UserRoutes()
+	// app.UserRoutes()
+	user := app.Gin.Group("/user")
+	//2 register - done
+	user.POST("/register", app.H.UserHandlers.Register)
+	//3 - done
+	user.GET("/auth", app.H.UserHandlers.Auth)
+	//4 - done - middleware done
+	user.GET("/:name", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.GetUserByName)
+	//5
+	user.POST("/phone", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.CreateUserPhone)
+	//6
+	user.GET("/phone", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.GetPhonesByQuery)
+	//7
+	user.PUT("/phone", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.UpdatePhone)
+	//8
+	user.DELETE("/phone/:phone_id", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.DeletePhone)
 
 	app.Gin.GET("/", app.H.UserHandlers.HomePage)
 
@@ -53,5 +72,5 @@ func (a *App) Run() {
 }
 
 func (a *App) UserRoutes() {
-	a.Gin.GET("/users", a.H.UserHandlers.HomePage)
+
 }
