@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -34,7 +35,7 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 	}
 	var token_cookie *http.Cookie
 	for _, cookie := range cookies {
-		if cookie.Name == "token" {
+		if cookie.Name == "SESSTOKEN" {
 			// fmt.Println(cookie.Value)
 			token_cookie = cookie
 			break
@@ -48,6 +49,7 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+
 	tokenString := token_cookie.Value
 	// fmt.Println(tokenString)
 	// check if token is valid
@@ -62,6 +64,28 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 	})
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		expite_time_string, ok := claims["expires"]
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token",
+			})
+			return
+		}
+		expire_time, err := time.Parse(time.RFC3339, expite_time_string.(string))
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token",
+			})
+			return
+		}
+
+		if expire_time.Before(time.Now()) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "token expired",
+			})
+			return
+		}
+
 		// if valid, get user id from token
 		// fmt.Println(claims["username"], claims["expires"])
 		c.Set("user_id", claims["user_id"])

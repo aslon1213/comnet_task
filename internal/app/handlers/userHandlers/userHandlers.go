@@ -67,7 +67,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	fmt.Println(user)
 	if err := user.Validate(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -78,14 +78,14 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	// := u.db.Query("SELECT * FROM users WHERE login = ?", user.Login)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 	defer rows.Close()
 	if rows.Next() {
 		c.JSON(http.StatusFound, gin.H{
-			"message": "user already exists",
+			"error": "user already exists",
 		})
 		return
 	}
@@ -95,7 +95,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	tx, err := u.db.BeginTx(u.ctx, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -103,7 +103,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 
 		return
@@ -111,7 +111,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	res, err := stmt.Exec(user.Login, user.Password, user.Name, user.Age)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -120,7 +120,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -139,7 +139,7 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&user_input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -147,7 +147,7 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 	rows, err := u.db.QueryContext(u.ctx, "SELECT id, login, password FROM users WHERE login = ?", user_input.Login)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": "error while preparing query --- " + err.Error(),
 		})
 		return
 	}
@@ -156,45 +156,48 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 		err = rows.Scan(&user.ID, &user.Login, &user.Password)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": err.Error(),
+				"error": err.Error(),
 			})
 			return
 		}
 	}
 	defer rows.Close()
-	fmt.Println(user)
+	// fmt.Println(user)
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(user_input.Password))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "wrong password",
+			"error": "wrong password or login",
 		})
 		return
 	}
 
-	token_string, err := CreateSessionCookieToken(user)
+	// expire tiem 1 day
+	expire_time := time.Now().Add(50 * time.Second)
+	token_string, err := CreateSessionCookieToken(user, expire_time)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
-	c.SetCookie("token", token_string, 24*3600, "/", "localhost", false, true)
+	c.SetCookie("SESSTOKEN", token_string, int(expire_time.Unix())-int(time.Now().Unix()), "/", "", false, true)
 
 	// check if user exists
 
 	c.JSON(200, gin.H{
-		"message": "Welcome User",
+		"error":   false,
+		"message": "Welcome " + user.Login,
 	})
 }
 
-func CreateSessionCookieToken(user models.User) (string, error) {
+func CreateSessionCookieToken(user models.User, expire_time time.Time) (string, error) {
 
 	// one day for expiration
-	expirations_time := time.Now().Add(24 * time.Hour)
+	// expirations_time := time.Now().Add(24 * time.Hour)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"username": user.Login,
 		"user_id":  user.ID,
-		"expires":  expirations_time,
+		"expires":  expire_time,
 	})
 	tokenString, err := token.SignedString([]byte(os.Getenv("SIGNING_SECRET")))
 	if err != nil {
@@ -253,17 +256,17 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&phone_input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 	}
-	fmt.Println(phone_input)
+	// fmt.Println(phone_input)
 
 	// no need to check
 	user_id, ok := c.Get("user_id")
 	fmt.Println("USERID", user_id)
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "user_id not found",
+			"error": "user_id not found",
 		})
 		return
 	}
@@ -271,7 +274,7 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 	tx, err := u.db.BeginTx(u.ctx, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -279,7 +282,7 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error while preparing query --- " + err.Error(),
+			"error": "Error while preparing query --- " + err.Error(),
 		})
 		return
 	}
@@ -289,7 +292,7 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 		// stmt.Close()
 		tx.Commit()
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -299,7 +302,7 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 		// stmt.Close()
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error while inserting ID --- " + err.Error(),
+			"error": "Error while inserting ID --- " + err.Error(),
 		})
 		return
 	}
@@ -313,7 +316,7 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 
 func (u *UserHandlers) HomePage(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"message": "Hello World",
+		"error": "Hello World",
 	})
 }
 
@@ -322,7 +325,7 @@ func (uh *UserHandlers) GetPhonesByQuery(c *gin.Context) {
 	q := c.Query("q")
 	if q == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "q is required",
+			"error": "q is required",
 		})
 		return
 	}
@@ -330,7 +333,7 @@ func (uh *UserHandlers) GetPhonesByQuery(c *gin.Context) {
 	rows, err := uh.db.QueryContext(uh.ctx, "SELECT user_id, phone, is_fax, description FROM phones WHERE phone LIKE ?", "%"+q+"%")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -343,7 +346,7 @@ func (uh *UserHandlers) GetPhonesByQuery(c *gin.Context) {
 		output = append(output, phone)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": err.Error(),
+				"error": err.Error(),
 			})
 			return
 		}
@@ -357,7 +360,7 @@ func (uh *UserHandlers) UpdatePhone(c *gin.Context) {
 	phone_input := models.PhoneUpdateInput{}
 	if err := c.ShouldBindJSON(&phone_input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 	}
 	fmt.Println(phone_input)
@@ -366,20 +369,20 @@ func (uh *UserHandlers) UpdatePhone(c *gin.Context) {
 	res, err := uh.db.ExecContext(uh.ctx, "UPDATE phones SET phone = ?, is_fax = ?, description = ? WHERE id = ?", phone_input.Phone, phone_input.IsFax, phone_input.Description, phone_input.PhoneId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 	rows_affected, err := res.RowsAffected()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 	if rows_affected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
-			"message": "phone not found",
+			"error": "phone not found",
 		})
 		return
 	}
@@ -394,7 +397,7 @@ func (uh *UserHandlers) DeletePhone(c *gin.Context) {
 	phone_id := c.Param("phone_id")
 	if phone_id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "phone_id is required",
+			"error": "phone_id is required",
 		})
 		return
 	}
@@ -402,14 +405,14 @@ func (uh *UserHandlers) DeletePhone(c *gin.Context) {
 	res, err := uh.db.ExecContext(uh.ctx, "DELETE FROM phones WHERE id = ?", phone_id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 	rows_affected, _ := res.RowsAffected()
 	if rows_affected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
-			"message": "phone not found",
+			"error": "phone not found",
 		})
 		return
 	}
