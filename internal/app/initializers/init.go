@@ -14,6 +14,9 @@ func Init() (*sql.DB, error) {
 	// if dir, _ := os.Getwd(); dir != "/home/aslon/go/src/github.com/aslon1213/comnet_task" {
 
 	// }
+	// set the timezone to UTC+5
+	// os.Setenv("TZ", "Asia/Tashkent")
+
 	// load envs
 	err := load_envs()
 	if err != nil {

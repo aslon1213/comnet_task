@@ -27,6 +27,8 @@ type App struct {
 	Gin *gin.Engine
 }
 
+var TIMEZONE = "Asia/Tashkent"
+
 func New() *App {
 
 	// prepare gin engine
