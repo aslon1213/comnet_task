@@ -171,7 +171,7 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 	}
 
 	// expire tiem 1 day
-	expire_time := time.Now().Add(50 * time.Second)
+	expire_time := time.Now().Add(24 * time.Hour)
 	// create jwt token with expire_time and user info
 	token_string, err := utilshelpers.CreateSessionCookieToken(user, expire_time)
 	if err != nil {
