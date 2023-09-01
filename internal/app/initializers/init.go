@@ -4,22 +4,28 @@ import (
 	"database/sql"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Init function prepares db connection and does migrations
 func Init() (*sql.DB, error) {
 	// fmt.Println(os.Getwd())
 	// if dir, _ := os.Getwd(); dir != "/home/aslon/go/src/github.com/aslon1213/comnet_task" {
 
 	// }
-	err := os.Chdir("/Users/aslonkhamidov/Desktop/code/tasks/comnet_task/")
+	// load envs
+	err := load_envs()
 	if err != nil {
 		return nil, err
 	}
-	// fmt.Println(os.Getwd())
 
-	// fmt.Println("db created")
-	// fmt.Println()
+	if gin.Mode() == gin.TestMode {
+		err := os.Chdir("/Users/aslonkhamidov/Desktop/code/tasks/comnet_task/")
+		if err != nil {
+			return nil, err
+		}
+	}
 	db, err := sql.Open("sqlite3", "./db/db.sqlite3")
 
 	if err != nil {
@@ -29,6 +35,7 @@ func Init() (*sql.DB, error) {
 	return db, nil
 }
 
+// do migrations
 func createtables(db *sql.DB) {
 
 	file, err := os.ReadFile("db/migrations/migrations.sql")

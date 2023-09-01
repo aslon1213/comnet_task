@@ -24,6 +24,9 @@ func New(DB *sql.DB, ctx context.Context) *AuthMiddleware {
 	}
 }
 
+// AuthMiddleware is a middleware which checks for valid token.
+// it checks for SESSTOKEN cookie and it's value which is jwt token returned by /user/auth.
+// if token is valid, it sets user_id and username to context and calls nextHandler by next().
 func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 	//get user token
 
@@ -34,6 +37,7 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 		return
 	}
 	var token_cookie *http.Cookie
+	// check whether SESSTOKEN cookie exists and value is not empty
 	for _, cookie := range cookies {
 		if cookie.Name == "SESSTOKEN" {
 			// fmt.Println(cookie.Value)
@@ -51,19 +55,20 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 	}
 
 	tokenString := token_cookie.Value
-	// fmt.Println(tokenString)
 	// check if token is valid
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
+		// validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
-		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
-		return []byte(os.Getenv("SIGNING_SECRET")), nil
+		// hmacSampleSecret is a []byte containing your secret
+		hmacSampleSecret := []byte(os.Getenv("SIGNING_SECRET"))
+		return hmacSampleSecret, nil
 	})
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// check if token is expired or not
 		expite_time_string, ok := claims["expires"]
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -87,7 +92,7 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 		}
 
 		// if valid, get user id from token
-		// fmt.Println(claims["username"], claims["expires"])
+		// set user_id and username to context and call next()
 		c.Set("user_id", claims["user_id"])
 		c.Set("username", claims["username"])
 		c.Next()
@@ -97,11 +102,8 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 		})
 	}
 
-	// if valid, get user from db
-
-	// if user not found, return error
-
-	// if user found, set user to context
-
-	// next()
 }
+
+// func(a *AuthMiddleware) CheckForRoutNames(c *gin.Context) {
+
+// }

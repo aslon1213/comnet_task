@@ -10,16 +10,18 @@ import (
 	"time"
 
 	"github.com/aslon1213/comnet_task/internal/app/models"
+	utilshelpers "github.com/aslon1213/comnet_task/internal/app/utils-helpers"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// UserHandlers struct contains context and db connection
 type UserHandlers struct {
 	ctx context.Context
 	db  *sql.DB
 }
 
+// initialize user handlers with context and db connection
 func New(ctx context.Context, db *sql.DB) *UserHandlers {
 	return &UserHandlers{
 		ctx: ctx,
@@ -27,20 +29,15 @@ func New(ctx context.Context, db *sql.DB) *UserHandlers {
 	}
 }
 
+// POST - user/register - handler.
+// input should contain age(int), name(string), login(string) and password(string) in form data.
+// when succesfull returns 201 status code and message.
 func (u *UserHandlers) Register(c *gin.Context) {
-	fmt.Println("User is going to be registered")
+	// fmt.Println("User is going to be registered")
 	var user models.User
 
 	// get form data
-
-	// fmt.Println(user_input)
-	// fmt.Println()
-	fmt.Println("AGE:", c.PostForm("age"))
-	fmt.Println("NAME:", c.PostForm("name"))
-	fmt.Println("LOGIN:", c.PostForm("login"))
-	fmt.Println("PASSWORD:", c.PostForm("password"))
 	a := c.PostForm("age")
-	// fmt.Println(a)
 	if a == "" {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -59,12 +56,13 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	user.Name = c.PostForm("name")
 	user.Login = c.PostForm("login")
 	user.Password = string(password_hashed)
-	// user.Email = ""
-	// user.Phone = ""
-
-	// user.FirstName = c.GetString("firstname")
-	// user.LastName = c.GetString("lastname")
-	fmt.Println(user)
+	// perform checks for valid data
+	if err := utilshelpers.Check_for_route_names(user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 	if err := user.Validate(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -73,9 +71,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	}
 
 	// check if user exists
-
 	rows, err := u.db.QueryContext(u.ctx, "SELECT * FROM users WHERE login = ?", user.Login)
-	// := u.db.Query("SELECT * FROM users WHERE login = ?", user.Login)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -91,7 +87,6 @@ func (u *UserHandlers) Register(c *gin.Context) {
 	}
 
 	// create user
-	// tx, err := u.db.Begin()
 	tx, err := u.db.BeginTx(u.ctx, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -108,7 +103,7 @@ func (u *UserHandlers) Register(c *gin.Context) {
 
 		return
 	}
-	res, err := stmt.Exec(user.Login, user.Password, user.Name, user.Age)
+	_, err = stmt.Exec(user.Login, user.Password, user.Name, user.Age)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -124,26 +119,30 @@ func (u *UserHandlers) Register(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println(res.LastInsertId())
+	// if succesfull return message with 200 code
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "user has registered successfully",
-		"result":  res,
 	})
 }
 
+// GET - /user/auth - handler.
+// input should contains login and password in json format.
+// when succesfull sets cookie SESSTOKEN with jswt token and returns 200 status code.
 func (u *UserHandlers) Auth(c *gin.Context) {
+	// get json data and bind it with struct
 	var user_input struct {
 		Login    string `json:"login"`
 		Password string `json:"password"`
 	}
 
 	if err := c.ShouldBindJSON(&user_input); err != nil {
+		// if not valid return error
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	fmt.Println(user_input)
+	// search for user
 	rows, err := u.db.QueryContext(u.ctx, "SELECT id, login, password FROM users WHERE login = ?", user_input.Login)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -162,7 +161,7 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 		}
 	}
 	defer rows.Close()
-	// fmt.Println(user)
+	// hash password and compare with user's hashed password
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(user_input.Password))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -173,16 +172,16 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 
 	// expire tiem 1 day
 	expire_time := time.Now().Add(50 * time.Second)
-	token_string, err := CreateSessionCookieToken(user, expire_time)
+	// create jwt token with expire_time and user info
+	token_string, err := utilshelpers.CreateSessionCookieToken(user, expire_time)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
+	// set cookie SESSTOKEN
 	c.SetCookie("SESSTOKEN", token_string, int(expire_time.Unix())-int(time.Now().Unix()), "/", "", false, true)
-
-	// check if user exists
 
 	c.JSON(200, gin.H{
 		"error":   false,
@@ -190,28 +189,13 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 	})
 }
 
-func CreateSessionCookieToken(user models.User, expire_time time.Time) (string, error) {
-
-	// one day for expiration
-	// expirations_time := time.Now().Add(24 * time.Hour)
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": user.Login,
-		"user_id":  user.ID,
-		"expires":  expire_time,
-	})
-	tokenString, err := token.SignedString([]byte(os.Getenv("SIGNING_SECRET")))
-	if err != nil {
-		return "", err
-	}
-
-	fmt.Println(tokenString)
-	return tokenString, nil
-}
-
+// GET - user/:name - handler.
+// returns user info by name.
+// sample output contains age, name and id of user.
 func (u *UserHandlers) GetUserByName(c *gin.Context) {
 
 	username := c.Param("name")
-	fmt.Println(username)
+	// qeury
 	rows, err := u.db.QueryContext(u.ctx, "SELECT id, login, name, age FROM users WHERE name = ?", username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -220,6 +204,7 @@ func (u *UserHandlers) GetUserByName(c *gin.Context) {
 		return
 	}
 
+	// append all results to slice
 	users := []models.User{}
 	defer rows.Close()
 	for rows.Next() {
@@ -234,7 +219,6 @@ func (u *UserHandlers) GetUserByName(c *gin.Context) {
 			return
 		}
 	}
-	fmt.Println(users)
 	output := []gin.H{}
 	for _, user := range users {
 		output = append(output, gin.H{
@@ -247,6 +231,10 @@ func (u *UserHandlers) GetUserByName(c *gin.Context) {
 	c.JSON(200, output)
 }
 
+// POST /user/phone - handler.
+// creates phone for user.
+// input should be in json format and contain phone(string <= 12), is_fax(bool) and description(string) fileds.
+// returns 201 status code and inserted id.
 func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 
 	var phone_input struct {
@@ -263,7 +251,7 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 
 	// no need to check
 	user_id, ok := c.Get("user_id")
-	fmt.Println("USERID", user_id)
+	// fmt.Println("USERID", user_id)
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "user_id not found",
@@ -314,12 +302,17 @@ func (u *UserHandlers) CreateUserPhone(c *gin.Context) {
 	})
 }
 
+// home page handler.
 func (u *UserHandlers) HomePage(c *gin.Context) {
+	fmt.Println(os.Getenv("SIGNING_SECRET"))
 	c.JSON(200, gin.H{
-		"error": "Hello World",
+		"message": "Hello World",
 	})
 }
 
+// GET /user/phone?q= - handler.
+// query phones.
+// should contain q query param.
 func (uh *UserHandlers) GetPhonesByQuery(c *gin.Context) {
 
 	q := c.Query("q")
@@ -355,6 +348,9 @@ func (uh *UserHandlers) GetPhonesByQuery(c *gin.Context) {
 
 }
 
+// PUT - user/phone - handler.
+// updates phone info - should contain phone_id(int),description(string), is_fax(bool) and phone(string) in json body.
+// returns 200 status code and message.
 func (uh *UserHandlers) UpdatePhone(c *gin.Context) {
 
 	phone_input := models.PhoneUpdateInput{}
@@ -363,7 +359,7 @@ func (uh *UserHandlers) UpdatePhone(c *gin.Context) {
 			"error": err.Error(),
 		})
 	}
-	fmt.Println(phone_input)
+	// fmt.Println(phone_input)
 
 	// create statement
 	res, err := uh.db.ExecContext(uh.ctx, "UPDATE phones SET phone = ?, is_fax = ?, description = ? WHERE id = ?", phone_input.Phone, phone_input.IsFax, phone_input.Description, phone_input.PhoneId)
@@ -392,6 +388,9 @@ func (uh *UserHandlers) UpdatePhone(c *gin.Context) {
 
 }
 
+// DELETE - user/phone/:phone_id - handler.
+// deletes phone by phone_id.
+// returns 200 status code and message if succesfull.
 func (uh *UserHandlers) DeletePhone(c *gin.Context) {
 
 	phone_id := c.Param("phone_id")

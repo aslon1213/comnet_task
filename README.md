@@ -1,14 +1,16 @@
 task - тестовое задание_2023.crash
 
-!To run application server
+# To run application server
+
+- firstly set SIGNING_SECRET variable in .env.example file to any value and rename the file to .env
 
 ```shell
     go mod tidy
     go run cmd/comnet_task/main.go
 ```
 
-!To run tests
+# To run tests
 
 ```shell
-    go test cmd/comnet_task/main_test.go
+    go test -v -cover cmd/comnet_task/main_test.go
 ```

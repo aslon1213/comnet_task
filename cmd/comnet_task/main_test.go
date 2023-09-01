@@ -45,7 +45,7 @@ func makeRequest(method, path string, body []byte, form_data url.Values, authreq
 
 	buf := bytes.Buffer{}
 	buf.Write(body)
-	fmt.Println(buf)
+	// fmt.Println(buf)
 	request, _ := http.NewRequest(method, path, &buf)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if authrequired {
@@ -101,9 +101,9 @@ func TestRegisterFail(t *testing.T) {
 	data.Add("age", fmt.Sprintf("%d", user.Age))
 
 	writer := makeRequest("POST", "/user/register", []byte(data.Encode()), data, false)
-	fmt.Println(string(writer.Body.Bytes()))
+	// fmt.Println(string(writer.Body.Bytes()))
 	assert.Equal(t, http.StatusFound, writer.Code)
-	assert.Contains(t, writer.Body.String(), "{\"message\":\"user already exists\"}")
+	assert.Contains(t, writer.Body.String(), "{\"error\":\"user already exists\"}")
 
 }
 
@@ -132,14 +132,14 @@ func TestGetUserByName(t *testing.T) {
 	writer := makeRequest("GET", "/user/test1", nil, nil, true)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Contains(t, writer.Body.String(), "{\"age\":25,\"id\":1,\"name\":\"test1\"}")
-	fmt.Println(writer.Body.String())
+	// fmt.Println(writer.Body.String())
 }
 
 func TestGetUserByNameFail(t *testing.T) {
 	writer := makeRequest("GET", "/user/test3", nil, nil, true)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.NotContains(t, writer.Body.String(), "test3")
-	fmt.Println(writer.Body.String())
+	// fmt.Println(writer.Body.String())
 }
 
 func TestCreateUserPhone(t *testing.T) {
@@ -186,7 +186,7 @@ func TestCreateUserPhoneFailByUniqueConstraint(t *testing.T) {
 	body, _ := json.Marshal(phone)
 	writer := makeRequest("POST", "/user/phone", body, nil, true)
 	assert.Equal(t, 500, writer.Code)
-	assert.Contains(t, writer.Body.String(), "{\"message\":\"UNIQUE constraint failed: phones.phone\"}")
+	assert.Contains(t, writer.Body.String(), "{\"error\":\"UNIQUE constraint failed: phones.phone\"}")
 
 }
 

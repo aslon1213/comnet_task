@@ -13,6 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// the main struct which contains all the necessary data
+// handlers
+// middlewares
+// gin engine
+// db connection
 type App struct {
 	// middlewares
 	Midw *middlewares.Middlewares
@@ -25,24 +30,21 @@ type App struct {
 func New() *App {
 
 	// prepare gin engine
-
-	ctx := context.Background()
+	ctx := context.Background() // one context for all the app
 	app := &App{}
 
-	db, err := initializers.Init()
+	db, err := initializers.Init() // init function prepares db connection and does migrations
 	if err != nil {
 		panic(err)
 	}
 
 	app.Db = db
-
 	app.Gin = gin.Default()
-	app.Midw = middlewares.New(authmiddleware.New(db, ctx))
-	app.H = handlers.New(userHandlers.New(ctx, app.Db))
+	app.Midw = middlewares.New(authmiddleware.New(db, ctx)) // middlewares
+	app.H = handlers.New(userHandlers.New(ctx, app.Db))     // handlers
 
 	// register routes
-	// user routes
-	// app.UserRoutes()
+	// user routes ----->  /user/*
 	user := app.Gin.Group("/user")
 	//2 register - done
 	user.POST("/register", app.H.UserHandlers.Register)
@@ -50,13 +52,14 @@ func New() *App {
 	user.GET("/auth", app.H.UserHandlers.Auth)
 	//4 - done - middleware done
 	user.GET("/:name", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.GetUserByName)
-	//5
+	// phone routes ----->   /user/phone/*
+	//5 - done
 	user.POST("/phone", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.CreateUserPhone)
-	//6
+	//6 - done
 	user.GET("/phone", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.GetPhonesByQuery)
-	//7
+	//7 - done
 	user.PUT("/phone", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.UpdatePhone)
-	//8
+	//8 - done
 	user.DELETE("/phone/:phone_id", app.Midw.Auth.AuthMiddleware, app.H.UserHandlers.DeletePhone)
 
 	app.Gin.GET("/", app.H.UserHandlers.HomePage)
@@ -64,6 +67,7 @@ func New() *App {
 	return app
 }
 
+// to run gin engine
 func (a *App) Run() {
 
 	fmt.Println("Running server on port 8080")

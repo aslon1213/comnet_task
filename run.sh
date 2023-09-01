@@ -1,0 +1,1 @@
+go run cmd/comnet_task/main.go
