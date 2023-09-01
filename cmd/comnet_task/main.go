@@ -1,6 +1,9 @@
 package main
-
-import "github.com/aslon1213/comnet_task/internal/pkg/app"
+import _ "github.com/aslon1213/comnet_task/internal/app/initializers/tzinit"
+import (
+	
+	"github.com/aslon1213/comnet_task/internal/pkg/app"
+)
 
 func main() {
 

@@ -31,7 +31,6 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 	//get user token
 
 	cookies := c.Request.Cookies()
-	// fmt.Println(cookies)
 	if len(cookies) == 0 {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
@@ -40,7 +39,6 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 	// check whether SESSTOKEN cookie exists and value is not empty
 	for _, cookie := range cookies {
 		if cookie.Name == "SESSTOKEN" {
-			// fmt.Println(cookie.Value)
 			token_cookie = cookie
 			break
 		}
@@ -53,7 +51,6 @@ func (a *AuthMiddleware) AuthMiddleware(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-
 	tokenString := token_cookie.Value
 	// check if token is valid
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

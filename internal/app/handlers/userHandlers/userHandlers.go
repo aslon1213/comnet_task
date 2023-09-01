@@ -33,6 +33,7 @@ func New(ctx context.Context, db *sql.DB) *UserHandlers {
 // input should contain age(int), name(string), login(string) and password(string) in form data.
 // when succesfull returns 201 status code and message.
 func (u *UserHandlers) Register(c *gin.Context) {
+	os.Setenv("TZ", "Asia/Tashkent")
 	// fmt.Println("User is going to be registered")
 	var user models.User
 
@@ -171,7 +172,17 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 	}
 
 	// expire tiem 1 day
-	expire_time := time.Now().Add(24 * time.Hour)
+	// time.Now().In(time.FixedZone("UTC+5", 5*60*60))
+	// set timezone to UTC+5
+	// os.Setenv("TZ", "Asia/Tashkent")
+	location, err := time.LoadLocation("Asia/Tashkent")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	expire_time := time.Now().In(location).Add(24 * time.Hour)
 	// create jwt token with expire_time and user info
 	token_string, err := utilshelpers.CreateSessionCookieToken(user, expire_time)
 	if err != nil {
@@ -181,7 +192,7 @@ func (u *UserHandlers) Auth(c *gin.Context) {
 		return
 	}
 	// set cookie SESSTOKEN
-	c.SetCookie("SESSTOKEN", token_string, int(expire_time.Unix())-int(time.Now().Unix()), "/", "", false, true)
+	c.SetCookie("SESSTOKEN", token_string, int(expire_time.Unix())-int(time.Now().In(location).Unix()), "/", "", false, true)
 
 	c.JSON(200, gin.H{
 		"error":   false,
